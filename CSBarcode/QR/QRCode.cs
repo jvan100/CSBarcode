@@ -5,10 +5,18 @@ namespace CSBarcode.QR;
 public class QRCode
 {
 
-    public EncodingMode Mode { get; init; }
-    public string RawData { get; init; }
-    public int Version { get; init; }
-    public int Width { get; init; }
+    public EncodingMode Mode { get; }
+    public int Version { get; }
+    public string RawData { get; }
+    public int Width { get; private set; }
+
+    public QRCode(EncodingMode mode, int version, string rawData, int width)
+    {
+        Mode = mode;
+        Version = version;
+        RawData = rawData;
+        Width = width;
+    }
 
     public void Print()
     {
@@ -18,6 +26,11 @@ public class QRCode
         }
 
         Console.WriteLine();
+    }
+
+    public void ResizeTo(int width)
+    {
+        Width = width;
     }
 
 }

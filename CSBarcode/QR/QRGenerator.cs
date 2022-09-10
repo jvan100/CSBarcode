@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Text;
 using CSBarcode.QR.Data;
 using CSBarcode.QR.Encoders;
@@ -13,6 +14,27 @@ public static class QRGenerator
     static QRGenerator()
     {
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+    }
+
+    public static string GenerateWiFiMessage(string SSID, string password, WiFiEncryption encryption, bool isHiddenNetwork = false)
+    {
+        string encryptionString = encryption switch
+        {
+            WiFiEncryption.None => "",
+            WiFiEncryption.WEP  => "WEP",
+            WiFiEncryption.WPA  => "WPA",
+            _                   => 
+                throw new InvalidEnumArgumentException("encryption", (int) encryption, typeof(WiFiEncryption))
+        };
+
+        if (encryption == WiFiEncryption.None)
+        {
+            password = "";
+        }
+
+        string isHiddenNetworkString = isHiddenNetwork ? "H:true;" : "";
+
+        return $"WIFI:T:{encryptionString};S:{SSID};P:{password};{isHiddenNetworkString};";
     }
 
     public static QRCode Generate(string message, int width, ErrorCorrectionLevel errorCorrectionLevel)
@@ -78,13 +100,7 @@ public static class QRGenerator
 
         rawDataBuilder.Append('0', Utils.GetRemainderBit(version));
 
-        return new QRCode
-        {
-            Mode = mode,
-            RawData = rawDataBuilder.ToString(),
-            Version = version,
-            Width = width
-        };
+        return new QRCode(mode, version, rawDataBuilder.ToString(), width);
     }
 
     private static CodewordsGroup[] GenerateDataCodewordsGroups(string rawData, CodewordsData codewordsData)
