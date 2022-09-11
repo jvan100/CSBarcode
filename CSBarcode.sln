@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CSQR", "CSQR\CSQR.csproj", "{C5F1187C-141E-4BFD-A90C-9ECF665A039A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CSBarcode", "CSBarcode\CSBarcode.csproj", "{C5F1187C-141E-4BFD-A90C-9ECF665A039A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
