@@ -1,3 +1,5 @@
+using CSBarcode.QR.Models;
+
 namespace CSBarcode.QR.Data;
 
 internal static class ErrorCorrectionData

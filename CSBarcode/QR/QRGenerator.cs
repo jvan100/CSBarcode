@@ -3,6 +3,7 @@ using System.Text;
 using CSBarcode.QR.Data;
 using CSBarcode.QR.Encoders;
 using CSBarcode.QR.Extensions;
+using CSBarcode.QR.Mask;
 using CSBarcode.QR.Models;
 using CSBarcode.QR.Providers;
 
@@ -72,7 +73,7 @@ public static class QRGenerator
 
         rawDataBuilder.Clear();
 
-        CodewordsBlock[] allDataCodewordsBlocks = dataCodewordsGroups.SelectMany(group => group.Blocks).ToArray();
+        IEnumerable<CodewordsBlock> allDataCodewordsBlocks = dataCodewordsGroups.SelectMany(group => group.Blocks);
         
         int maxNoDataCodewordsPerBlock = Math.Max(codewordsData.NoDataCodewordsInGroup1Blocks, codewordsData.NoDataCodewordsInGroup2Blocks);
         
@@ -88,7 +89,7 @@ public static class QRGenerator
             }
         }
 
-        CodewordsBlock[] allErrorCodewordsBlocks = errorCodewordsGroups.SelectMany(group => group.Blocks).ToArray();
+        IEnumerable<CodewordsBlock> allErrorCodewordsBlocks = errorCodewordsGroups.SelectMany(group => group.Blocks);
 
         for (int i = 0; i < codewordsData.NoECCodewordsPerBlock; i++)
         {
@@ -98,9 +99,13 @@ public static class QRGenerator
             }
         }
 
-        rawDataBuilder.Append('0', Utils.GetRemainderBit(version));
+        rawDataBuilder.Append('0', RemainderBitsDataProvider.GetRemainderBit(version));
 
-        return new QRCode(mode, version, rawDataBuilder.ToString(), width);
+        byte[,] matrix = CreateMatrix(errorCorrectionLevel, version, rawDataBuilder.ToString());
+        
+        PrintMatrix(matrix);
+
+        return new QRCode(mode, version, message, rawDataBuilder.ToString(), matrix, width);
     }
 
     private static CodewordsGroup[] GenerateDataCodewordsGroups(string rawData, CodewordsData codewordsData)
@@ -220,6 +225,274 @@ public static class QRGenerator
             .ToArray();
 
         return errorCodewords;
+    }
+
+    private static byte[,] CreateMatrix(ErrorCorrectionLevel errorCorrectionLevel, int version, string rawData)
+    {
+        int noOfModules = version * 4 + 17;
+        
+        byte[,] matrix = new byte[noOfModules, noOfModules];
+
+        for (int i = 0; i < noOfModules; i++)
+        {
+            for (int j = 0; j < noOfModules; j++)
+            {
+                matrix[i, j] = ModuleColours.EMPTY;
+            }
+        }
+        
+        AddFinderPatternsToMatrix(matrix);
+        AddSeparatorsToMatrix(matrix);
+        AddAlignmentPatternsToMatrix(matrix, version);
+        AddReservedAreasToMatrix(matrix, version);
+        AddTimingPatternsToMatrix(matrix);
+        AddRawDataToMatrix(matrix, rawData);
+
+        int maskNo = MatrixMasker.Mask(ref matrix);
+        AddFormatInfoToMatrix(matrix, errorCorrectionLevel, maskNo);
+
+        if (version > 6)
+        {
+            AddVersionInfoToMatrix(matrix, version);
+        }
+        
+        return matrix;
+    }
+
+    private static void AddFinderPatternsToMatrix(byte[,] matrix)
+    {
+        int shift = matrix.GetLength(0) - 7;
+
+        // Add finder rings
+        for (int i = 0; i < 3; i++)
+        {
+            byte colour = (i % 2 == 0) ? ModuleColours.PATTERN_FOREGROUND : ModuleColours.PATTERN_BACKGROUND;
+
+            int boundary = 6 - i;
+
+            for (int j = i; j < boundary; j++)
+            {
+                // Top left
+                matrix[j, i] = colour;
+                matrix[i, j + 1] = colour;
+                matrix[j + 1, boundary] = colour;
+                matrix[boundary, j] = colour;
+                
+                // Top right
+                matrix[j, shift + i] = colour;
+                matrix[i, shift + j + 1] = colour;
+                matrix[j + 1, shift + boundary] = colour;
+                matrix[boundary, shift + j] = colour;
+                
+                // Bottom left
+                matrix[shift + j, i] = colour;
+                matrix[shift + i, j + 1] = colour;
+                matrix[shift + j + 1, boundary] = colour;
+                matrix[shift + boundary, j] = colour;
+            }
+        }
+        
+        // Add finder centres
+        matrix[3, 3] = ModuleColours.PATTERN_FOREGROUND;
+        matrix[3, shift + 3] = ModuleColours.PATTERN_FOREGROUND;
+        matrix[shift + 3, 3] = ModuleColours.PATTERN_FOREGROUND;
+    }
+
+    private static void AddSeparatorsToMatrix(byte[,] matrix)
+    {
+        const byte PATTERN_BACKGROUND = ModuleColours.PATTERN_BACKGROUND;
+        
+        int shift = matrix.GetLength(0) - 8;
+
+        for (int i = 0; i < 8; i++)
+        {
+            // Top left
+            matrix[i, 7] = PATTERN_BACKGROUND;
+            matrix[7, i] = PATTERN_BACKGROUND;
+            
+            // Top right
+            matrix[i, shift] = PATTERN_BACKGROUND;
+            matrix[7, shift + i] = PATTERN_BACKGROUND;
+            
+            // Bottom left
+            matrix[shift + i, 7] = PATTERN_BACKGROUND;
+            matrix[shift, i] = PATTERN_BACKGROUND;
+        }
+    }
+
+    private static void AddAlignmentPatternsToMatrix(byte[,] matrix, int version)
+    {
+        if (version > 1)
+        {
+            foreach ((int row, int col) in AlignmentLocationsDataProvider.GetAlignmentLocations(version))
+            {
+                int rowOffset = row - 2;
+                int colOffset = col - 2;
+                
+                // Add alignment rings
+                for (int i = 0; i < 2; i++)
+                {
+                    byte colour = (i % 2 == 0) ? ModuleColours.PATTERN_FOREGROUND : ModuleColours.PATTERN_BACKGROUND;
+                    
+                    int boundary = 4 - i;
+
+                    for (int j = i; j < boundary; j++)
+                    {
+                        matrix[rowOffset + j, colOffset + i] = colour;
+                        matrix[rowOffset + i, colOffset + j + 1] = colour;
+                        matrix[rowOffset + j + 1, colOffset + boundary] = colour;
+                        matrix[rowOffset + boundary, colOffset + j] = colour;
+                    }
+                }
+                
+                // Add centre
+                matrix[row, col] = ModuleColours.PATTERN_FOREGROUND;
+            }
+        }
+    }
+
+    private static void AddReservedAreasToMatrix(byte[,] matrix, int version)
+    {
+        const byte RESERVED = ModuleColours.RESERVED;
+        
+        int shift = matrix.GetLength(0) - 9;
+        
+        for (int i = 0; i < 9; i++) {
+            // Top left
+            matrix[i, 8] = RESERVED;
+            matrix[8, i] = RESERVED;
+
+            // Top right
+            if (i > 0) {
+                matrix[8, shift + i] = RESERVED;
+
+                // Bottom left
+                if (i > 1)
+                    matrix[shift + i, 8] = RESERVED;
+            }
+        }
+        
+        if (version > 6) {
+            for (int i = shift; i > shift - 3; i--) {
+                for (int j = 0; j < 6; j++) {
+                    // Top right
+                    matrix[j, i] = RESERVED;
+
+                    // Bottom left
+                    matrix[i, j] = RESERVED;
+                }
+            }
+        }
+
+        matrix[shift + 1, 8] = ModuleColours.PATTERN_FOREGROUND;
+    }
+
+    private static void AddTimingPatternsToMatrix(byte[,] matrix)
+    {
+        int shift = matrix.GetLength(0) - 9;
+        
+        for (int i = 8; i <= shift; i++)
+        {
+            byte colour = (i % 2 == 0) ? ModuleColours.PATTERN_FOREGROUND : ModuleColours.PATTERN_BACKGROUND;
+            
+            // Top
+            matrix[6, i] = colour;
+
+            // Left
+            matrix[i, 6] = colour;
+        }
+    }
+
+    private static void AddRawDataToMatrix(byte[,] matrix, string rawData)
+    {
+        int matrixLength = matrix.GetLength(0);
+        
+        int dataIndex = 0;
+        int rowDirection = -1;
+        int colDirection = -1;
+
+        for (int col = matrixLength - 1; col >= 0; col -= 2)
+        {
+            if (col == 6)
+            {
+                col = 7;
+                continue;
+            }
+
+            int row = (rowDirection == 1) ? 0 : matrixLength - 1;
+
+            while (row >= 0 && row < matrixLength)
+            {
+                if (matrix[row, col] == ModuleColours.EMPTY)
+                {
+                    char bit = rawData[dataIndex++];
+                    matrix[row, col] = bit == '1' ? ModuleColours.FOREGROUND : ModuleColours.BACKGROUND;
+                }
+
+                col += colDirection;
+
+                if (colDirection == 1)
+                {
+                    row += rowDirection;
+                }
+
+                colDirection = -colDirection;
+            }
+
+            rowDirection = -rowDirection;
+        }
+    }
+
+    private static void AddFormatInfoToMatrix(byte[,] matrix, ErrorCorrectionLevel errorCorrectionLevel, int maskNo)
+    {
+        int matrixLength = matrix.GetLength(0);
+        
+        byte[] formatInfo = FormatInfoDataProvider.GetFormatInfo(errorCorrectionLevel, maskNo);
+
+        for (int i = 0; i < 7; i++)
+        {
+            int j = (i != 6) ? i : 7;
+
+            matrix[8, j] = formatInfo[i];
+            matrix[matrixLength - i - 1, 8] = formatInfo[i];
+        }
+
+        for (int i = 7; i < 15; i++)
+        {
+            int j = (i < 9) ? i : i + 1;
+
+            matrix[15 - j, 8] = formatInfo[i];
+            matrix[8, matrixLength + i - 15] = formatInfo[i];
+        }
+    }
+
+    private static void AddVersionInfoToMatrix(byte[,] matrix, int version)
+    {
+        byte[] versionInfo = VersionInfoDataProvider.GetVersionInfo(version);
+
+        int shift = matrix.GetLength(0) - 11;
+
+        for (int i = 0; i < 18; i++)
+        {
+            int row = (17 - i) / 3;
+            int col = (17 - i) % 3;
+
+            matrix[row, col + shift] = versionInfo[i];
+            matrix[col + shift, row] = versionInfo[i];
+        }
+    }
+
+    private static void PrintMatrix<T>(T[,] matrix)
+    {
+        for (int i = 0; i < matrix.GetLength(0); i++)
+        {
+            for (int j = 0; j < matrix.GetLength(1); j++)
+            {
+                Console.Write(matrix[i,j] + " ");
+            }
+            
+            Console.WriteLine();
+        }
     }
 
 }

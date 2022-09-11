@@ -1,4 +1,4 @@
-namespace CSBarcode.QR.Data;
+namespace CSBarcode.QR.Models;
 
 internal sealed class CodewordsData
 {

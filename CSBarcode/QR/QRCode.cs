@@ -9,12 +9,16 @@ public class QRCode
     public int Version { get; }
     public string RawData { get; }
     public int Width { get; private set; }
+    public string Message { get; }
+    public byte[,] Matrix { get; }
 
-    public QRCode(EncodingMode mode, int version, string rawData, int width)
+    public QRCode(EncodingMode mode, int version, string message, string rawData, byte[,] matrix, int width)
     {
         Mode = mode;
         Version = version;
+        Message = message;
         RawData = rawData;
+        Matrix = matrix;
         Width = width;
     }
 

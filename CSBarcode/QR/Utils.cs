@@ -142,9 +142,4 @@ internal static class Utils
         return LogAntilogData.antilog[x];
     }
 
-    internal static int GetRemainderBit(int version)
-    {
-        return RemainderBitsData.remainderBits[version - 1];
-    }
-    
 }
