@@ -9,7 +9,7 @@ internal static class MatrixMasker
     {
         (row, col) => (row + col) % 2 == 0,
         (row, _) => row % 2 == 0,
-        (_, col) => col % 2 == 0,
+        (_, col) => col % 3 == 0,
         (row, col) => (row + col) % 3 == 0,
         (row, col) => (row / 2 + col / 3) % 2 == 0,
         (row, col) => row * col % 2 + row * col % 3 == 0,
@@ -57,11 +57,8 @@ internal static class MatrixMasker
             {
                 byte colour = matrix[row, col];
                 
-                if (colour is ModuleColours.BACKGROUND or ModuleColours.FOREGROUND)
-                {
-                    if (maskPredicate(row, col)) {
-                        maskedMatrix[row, col] = colour == ModuleColours.BACKGROUND ? ModuleColours.FOREGROUND : ModuleColours.BACKGROUND;
-                    }
+                if (colour is ModuleColours.BACKGROUND or ModuleColours.FOREGROUND && maskPredicate(row, col)) {
+                    maskedMatrix[row, col] = colour == ModuleColours.BACKGROUND ? ModuleColours.FOREGROUND : ModuleColours.BACKGROUND;
                 }
                 else
                 {
@@ -242,7 +239,7 @@ internal static class MatrixMasker
         
         // Condition 4
         int noForegroundModules = maskedMatrix.Cast<byte>().Count(colour => colour == ModuleColours.FOREGROUND);
-        int foregroundPercentage = noForegroundModules / (matrixLength * matrixLength) * 100;
+        int foregroundPercentage = 100 * noForegroundModules / (matrixLength * matrixLength);
         totalPenalty += 10 * Math.Min(Math.Abs(5 * (foregroundPercentage / 5) - 50) / 5, Math.Abs(5 * (foregroundPercentage / 5 + 1) - 50) / 5);
 
         return totalPenalty;

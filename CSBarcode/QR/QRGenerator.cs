@@ -37,15 +37,47 @@ public static class QRGenerator
 
         return $"WIFI:T:{encryptionString};S:{SSID};P:{password};{isHiddenNetworkString};";
     }
+    
+    public static string GenerateEmailMessage(string email, string subject = "", string body = "")
+    {
+        return $"mailto:{email}?subject={subject}&body={body}";
+    }
+    
+    public static string GenerateSMSMessage(string phoneNumber = "", string message = "")
+    {
+        return $"SMSTO:{phoneNumber}:{message}";
+    }
+    
+    public static string GenerateTweetMessage(string username = "", string message = "")
+    {
+        return $"https://twitter.com/intent/tweet?text={message}&via={username}";
+    }
+    
+    public static string GenerateCalendarEventMessage(string title = "", string description = "", string location = "", DateTime? startDateTime = null, DateTime? endDateTime = null)
+    {
+        string startDateString = startDateTime?.ToString("yyyyMMddTHHmmssZ") ?? string.Empty;
+        string endDateString = endDateTime?.ToString("yyyyMMddTHHmmssZ") ?? string.Empty;
+        
+        return $"BEGIN:VEVENT\nSUMMARY:{title}\nDESCRIPTION:{description}\nLOCATION:{location}\nDTSTART:{startDateString}\nDTEND:{endDateString}\nEND:VEVENT";
+    }
 
-    public static QRCode Generate(string message, int width, ErrorCorrectionLevel errorCorrectionLevel)
+    public static QRCode Generate(string message, ErrorCorrectionLevel errorCorrectionLevel, bool displayDebugInfo = false)
     {
         StringBuilder rawDataBuilder = new();
         
-        EncodingMode mode = Utils.GetBestFitMode(message);
+        EncodingMode mode = Utils.GetBestFitEncodingMode(message);
         int version = Utils.GetSmallestVersion(message, mode, errorCorrectionLevel);
 
         rawDataBuilder.Append(Utils.GetModeIndicator(mode));
+        
+        if (displayDebugInfo)
+        {
+            Console.WriteLine("Debug information\n-----------------");
+            Console.WriteLine($"\nQR version: {version}");
+            Console.WriteLine($"Error correction level: {errorCorrectionLevel.ToString()}");
+            Console.WriteLine($"Encoding mode: {mode.ToString()}");
+            Console.WriteLine($"\nPlain text message: {message}");
+        }
         
         int characterCountIndicatorLength = Utils.GetCharacterCountIndicatorLength(mode, version);
         rawDataBuilder.Append(message.Length.ToLeftPaddedBinaryString(characterCountIndicatorLength));
@@ -57,9 +89,18 @@ public static class QRGenerator
         int noRequiredBits = codewordsData.TotalNoDataCodewords * 8;
         int noTerminatorBits = Math.Min(noRequiredBits - rawDataBuilder.Length, 4);
         rawDataBuilder.Append('0', noTerminatorBits);
+        
+        if (displayDebugInfo)
+        {
+            Console.WriteLine($"\nInput string:\n{Utils.ToByteString(rawDataBuilder.ToString())}");
+        }
 
         int noRemainingBitsToAdd = 8 - (rawDataBuilder.Length % 8);
-        rawDataBuilder.Append('0', noRemainingBitsToAdd);
+        
+        if (noRemainingBitsToAdd != 8)
+        {
+            rawDataBuilder.Append('0', noRemainingBitsToAdd);
+        }
 
         int noPadBytesToAdd = (noRequiredBits - rawDataBuilder.Length) / 8;
 
@@ -67,9 +108,61 @@ public static class QRGenerator
         {
             rawDataBuilder.Append(Utils.GetPadByte(i));
         }
+        
+        if (displayDebugInfo)
+        {
+            Console.WriteLine($"\nInput string with padding:\n{Utils.ToByteString(rawDataBuilder.ToString())}");
+        }
 
         CodewordsGroup[] dataCodewordsGroups = GenerateDataCodewordsGroups(rawDataBuilder.ToString(), codewordsData);
+        
+        if (displayDebugInfo)
+        {
+            Console.Write($"\nData codewords ({codewordsData.NoDataCodewordsInGroup1Blocks} * {codewordsData.NoBlocksInGroup1} + {codewordsData.NoDataCodewordsInGroup2Blocks} * {codewordsData.NoBlocksInGroup2} = {codewordsData.TotalNoDataCodewords} total):\n[");
+            
+            foreach (CodewordsGroup group in dataCodewordsGroups)
+            {
+                if (group.Blocks.Length > 0)
+                {
+                    Console.Write("[");
+                
+                    foreach (CodewordsBlock block in group.Blocks)
+                    {
+                        Console.Write(string.Join(", ", block.Codewords));
+                    }
+
+                    Console.Write("]");
+                }
+            }
+
+            Console.WriteLine("]");
+        }
+        
         CodewordsGroup[] errorCodewordsGroups = GenerateErrorCodewordsGroups(dataCodewordsGroups, codewordsData.NoECCodewordsPerBlock);
+        
+        if (displayDebugInfo)
+        {
+            int totalBlocks = codewordsData.NoBlocksInGroup1 + codewordsData.NoBlocksInGroup2;
+            
+            Console.Write($"\nError correction codewords ({codewordsData.NoECCodewordsPerBlock} * {totalBlocks} = {(codewordsData.NoECCodewordsPerBlock * totalBlocks)} total):\n[");
+            
+            foreach (CodewordsGroup group in errorCodewordsGroups)
+            {
+                if (group.Blocks.Length > 0)
+                {
+                    Console.Write("[");
+                
+                    foreach (CodewordsBlock block in group.Blocks)
+                    {
+                        Console.Write(string.Join(", ", block.Codewords));
+                    }
+
+                    Console.Write("]");
+                }
+            }
+
+            Console.WriteLine("]");
+        }
 
         rawDataBuilder.Clear();
 
@@ -101,11 +194,20 @@ public static class QRGenerator
 
         rawDataBuilder.Append('0', RemainderBitsDataProvider.GetRemainderBit(version));
 
-        byte[,] matrix = CreateMatrix(errorCorrectionLevel, version, rawDataBuilder.ToString());
-        
-        PrintMatrix(matrix);
+        if (displayDebugInfo)
+        {
+            Console.WriteLine($"\nFinal message:\n{Utils.ToByteString(rawDataBuilder.ToString())}");
+        }
 
-        return new QRCode(mode, version, message, rawDataBuilder.ToString(), matrix, width);
+        byte[,] matrix = CreateMatrix(errorCorrectionLevel, version, rawDataBuilder.ToString(), displayDebugInfo);
+        
+        if (displayDebugInfo)
+        {
+            Console.WriteLine("\nFinal matrix:");
+            PrintMatrix(matrix);
+        }
+
+        return new QRCode(mode, version, message, rawDataBuilder.ToString(), matrix);
     }
 
     private static CodewordsGroup[] GenerateDataCodewordsGroups(string rawData, CodewordsData codewordsData)
@@ -227,11 +329,16 @@ public static class QRGenerator
         return errorCodewords;
     }
 
-    private static byte[,] CreateMatrix(ErrorCorrectionLevel errorCorrectionLevel, int version, string rawData)
+    private static byte[,] CreateMatrix(ErrorCorrectionLevel errorCorrectionLevel, int version, string rawData, bool displayDebugInfo)
     {
         int noOfModules = version * 4 + 17;
         
         byte[,] matrix = new byte[noOfModules, noOfModules];
+        
+        if (displayDebugInfo)
+        {
+            Console.WriteLine($"\nCreating matrix ({noOfModules} x {noOfModules})");
+        }
 
         for (int i = 0; i < noOfModules; i++)
         {
@@ -247,8 +354,21 @@ public static class QRGenerator
         AddReservedAreasToMatrix(matrix, version);
         AddTimingPatternsToMatrix(matrix);
         AddRawDataToMatrix(matrix, rawData);
+        
+        if (displayDebugInfo)
+        {
+            Console.WriteLine("\nMatrix with raw data:");
+            PrintMatrix(matrix);
+        }
 
         int maskNo = MatrixMasker.Mask(ref matrix);
+        
+        if (displayDebugInfo)
+        {
+            Console.WriteLine($"\nMatrix with mask {maskNo} applied:");
+            PrintMatrix(matrix);
+        }
+        
         AddFormatInfoToMatrix(matrix, errorCorrectionLevel, maskNo);
 
         if (version > 6)
@@ -451,7 +571,7 @@ public static class QRGenerator
 
         for (int i = 0; i < 7; i++)
         {
-            int j = (i != 6) ? i : 7;
+            int j = i != 6 ? i : 7;
 
             matrix[8, j] = formatInfo[i];
             matrix[matrixLength - i - 1, 8] = formatInfo[i];
@@ -459,7 +579,7 @@ public static class QRGenerator
 
         for (int i = 7; i < 15; i++)
         {
-            int j = (i < 9) ? i : i + 1;
+            int j = i < 9 ? i : i + 1;
 
             matrix[15 - j, 8] = formatInfo[i];
             matrix[8, matrixLength + i - 15] = formatInfo[i];
@@ -484,6 +604,8 @@ public static class QRGenerator
 
     private static void PrintMatrix<T>(T[,] matrix)
     {
+        Console.WriteLine();
+        
         for (int i = 0; i < matrix.GetLength(0); i++)
         {
             for (int j = 0; j < matrix.GetLength(1); j++)
