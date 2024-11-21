@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Text;
-using CSBarcode.QR.Data;
 using CSBarcode.QR.Encoders;
 using CSBarcode.QR.Extensions;
 using CSBarcode.QR.Mask;

@@ -1,4 +1,3 @@
-using CSBarcode.QR.Data;
 using CSBarcode.QR.Models;
 using static CSBarcode.QR.Data.ErrorCorrectionData;
 
