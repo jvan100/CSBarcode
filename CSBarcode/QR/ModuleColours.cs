@@ -1,6 +1,6 @@
 namespace CSBarcode.QR;
 
-public static class ModuleColours
+internal static class ModuleColours
 {
     
     public const byte BACKGROUND = 0;
