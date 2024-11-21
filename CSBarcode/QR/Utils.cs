@@ -13,18 +13,15 @@ internal static class Utils
     private static readonly Regex _numericRegex = new(@"^\d+$");
     private static readonly Regex _alphanumericRegex = new(@"^[\dA-Z$%*+-.\/: ]+$");
 
-    internal static EncodingMode GetBestFitMode(string message)
+    internal static EncodingMode GetBestFitEncodingMode(string message) => message switch
     {
-        return message switch
-        {
-            not null when IsValidNumericString(message)      => EncodingMode.Numeric,
-            not null when IsValidAlphanumericString(message) => EncodingMode.Alphanumeric,
-            not null when IsValidISOString(message)          => EncodingMode.Byte,
-            not null when IsValidShiftJISString(message)     => EncodingMode.Kanji,
-            _                                                => 
-                throw new NotImplementedException($"Input message \"{message}\" does not use a QR recognised encoding.")
-        };
-    }
+        not null when IsValidNumericString(message)      => EncodingMode.Numeric,
+        not null when IsValidAlphanumericString(message) => EncodingMode.Alphanumeric,
+        not null when IsValidISOString(message)          => EncodingMode.Byte,
+        not null when IsValidShiftJISString(message)     => EncodingMode.Kanji,
+        _                                                => 
+            throw new NotImplementedException($"Input message \"{message}\" does not use a QR recognised encoding.")
+    };
 
     private static bool IsValidNumericString(string input)
     {
@@ -140,6 +137,24 @@ internal static class Utils
     internal static int Antilog(int x)
     {
         return LogAntilogData.antilog[x];
+    }
+    
+    internal static string ToByteString(string s)
+    {
+        StringBuilder sb = new();
+        
+        int quotient = s.Length / 8;
+        int remainder = s.Length % 8;
+        
+        int i;
+        
+        for (i = 0; i < quotient * 8; i += 8)
+        {
+            sb.Append(s, i, 8).Append(' ');
+        }
+        
+        sb.Append(s, i, remainder);
+        return sb.ToString();
     }
 
 }
