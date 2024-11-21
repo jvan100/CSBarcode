@@ -23,7 +23,7 @@ QRCode qr = QRGenerator.Generate("Message to encode", errorCorrectionLevel: Erro
 qr.Save("/path/to/folder/qr.png", pixelsPerModule: 10);
 ```
 
-### Payload Generators
+## Payload Generators
 
 **CSBarcode** provides helpful utility methods to create special QR code messages for various use cases:
 
