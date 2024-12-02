@@ -5,7 +5,23 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <RootNamespace>CSBarcode</RootNamespace>
+        <Title>CSBarcode - A pure C# barcode generation library</Title>
+        <Authors>j_van100</Authors>
+        <Description>CSBarcode is a lightweight, pure C# library for generating barcodes, with current support for QR code generation. It provides an easy-to-use API for creating high-quality QR code images, including support for generating specialist payloads and Japanese Kanji characters.</Description>
+        <PackageProjectUrl>https://github.com/jvan100/CSBarcode</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/jvan100/CSBarcode</RepositoryUrl>
     </PropertyGroup>
+    
+    <PropertyGroup>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    </PropertyGroup>
+    
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+        <None Include="example-qr.png" Pack="true" PackagePath="\" />
+        <None Include="LICENSE" Pack="true" PackagePath="\" />
+    </ItemGroup>
 
     <ItemGroup>
       <PackageReference Include="SixLabors.ImageSharp" Version="3.1.5" />
